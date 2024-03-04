@@ -1,0 +1,509 @@
+Program.Sub.ScreenSU.Start
+gui.f_status..create
+gui.f_status..caption("XML And FTP Status")
+gui.f_status..size(9600,1440)
+gui.f_status..position(0,0)
+gui.f_status..event(unload,f_status_unload)
+gui.f_status..alwaysontop(False)
+gui.f_status..fontname("Arial")
+gui.f_status..fontsize(8)
+gui.f_status..forecolor(0)
+gui.f_status..fontstyle(,,,,)
+gui.f_status..BackColor(-2147483633)
+gui.f_status..controlbox(True)
+gui.f_status..maxbutton(False)
+gui.f_status..minbutton(True)
+gui.f_status..mousepointer(0)
+gui.f_status..moveable(True)
+gui.f_status..sizeable(False)
+gui.f_status..ShowInTaskBar(True)
+gui.f_status..titlebar(True)
+gui.f_status.lbl1.create(label)
+gui.f_status.lbl1.caption("")
+gui.f_status.lbl1.backstyle(0)
+gui.f_status.lbl1.visible(True)
+gui.f_status.lbl1.size(8970,255)
+gui.f_status.lbl1.zorder(1)
+gui.f_status.lbl1.position(200,200)
+gui.f_status.lbl1.enabled(True)
+gui.f_status.lbl1.alignment(0)
+gui.f_status.lbl1.fontname("Arial")
+gui.f_status.lbl1.fontsize(8)
+gui.f_status.lbl1.BackColor(-2147483633)
+
+
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+
+Program.Sub.Definition.DefaultArgs("ftp_upload","doc")
+Variable.Global.iSizeLast.Declare(Float,0)
+Variable.Global.iFileSize.Declare(Float,0)
+Variable.Global.fStart.Declare(Float,0)
+Variable.Global.sTransferFile.Declare(String)
+Program.Sub.Definition.DefaultArgs("BuildSerialInv","doc*!*number")
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+V.Local.sRecieverNo.Declare(String)
+V.Local.sQuery.Declare(String)
+V.Local.sRoot.Declare(String)
+V.Local.sNode.Declare(String)
+V.Local.sSubNode.Declare(String)
+V.Local.sSubNode.Redim(0,4)
+V.Local.dateX.Declare(Date)
+V.Local.sdate.Declare(String)
+V.Local.sdate.Redim(0,2)
+V.Local.sLoc.Declare(String)
+V.Local.strans.Declare(String)
+V.Local.sPO.Declare(String)
+
+V.Local.sDoc.Declare(String)
+V.Local.shold.Declare(String)
+
+
+
+
+'F.Intrinsic.Control.If(V.Caller.Hook,=,15040)
+	F.Intrinsic.string.Concat(V.Passed.000010,V.Passed.000153,V.Local.sRecieverNo)
+
+	'Attached to hook 15040
+	'PO 	Number = 000002
+	F.Intrinsic.String.LPad(V.Passed.000002,"0",7,V.local.sPO)
+'F.Intrinsic.Control.Else
+'	V.Local.sRecieverNo.Set("00126A")
+'	V.Local.sPO.Set("0028236")
+'F.Intrinsic.Control.EndIf
+
+
+
+
+F.ODBC.Connection!conx.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+
+F.Intrinsic.Control.AddEventHandler("FTPError","FTPErrorEvent")
+F.Intrinsic.Control.AddEventHandler("FTPDirList","FTPDirEvent")
+'F.Intrinsic.Control.AddEventHandler("FTPConnectionStatus","FTPConnectionEvent")
+F.Intrinsic.Control.AddEventHandler("FTPStartTransfer","FTPStartTransfer")
+F.Intrinsic.Control.AddEventHandler("FTPEndTransfer","FTPEndTransfer")
+F.Intrinsic.Control.AddEventHandler("FTPTransfer","FTPTransfer")
+
+F.Intrinsic.string.Concat("select VENDOR, LOCATION from PO_RECEIVER WHERE  RECEIVER_NO = '",V.Local.sRecieverNo,"'",V.Local.sQuery)
+F.ODBC.Connection!conx.OpenRecordsetRO("rst",V.Local.sQuery)
+F.Intrinsic.Control.If(V.ODBC.conx!rst.EOF,=,False)
+	V.Local.shold.Set(V.ODBC.conx!rst.FieldValTrim!VENDOR)
+	V.Local.sLoc.Set(V.ODBC.conx!rst.FieldValTrim!LOCATION)
+	F.Intrinsic.Control.If(V.Local.shold.UCase,<>,"GENCO")
+		F.ODBC.conx!rst.Close
+		F.ODBC.Connection!conx.close
+		F.Intrinsic.Control.end
+	F.Intrinsic.Control.endif
+F.Intrinsic.Control.ElseIf(V.ODBC.conx!rst.EOF,=,True)
+	F.Intrinsic.Control.end
+F.Intrinsic.Control.EndIf
+
+F.ODBC.conx!rst.Close
+
+Gui.f_status..Show
+V.Local.sSubNode2.Declare(String)
+F.Intrinsic.String.Format(V.Ambient.Now,"YYYYMMDDhhmmss",V.Local.shold)
+F.Intrinsic.string.Concat("confirm_",V.Local.shold,".xml",V.Local.sDoc)
+
+F.Global.XML.CreateDocument(V.Local.sDoc,False,True,False,False)
+Gui.f_status.lbl1.Caption("Creating XML Document")
+
+V.Local.sRoot.Set("CSASNConfirm")
+F.Global.XML.SetRoot(V.Local.sDoc,V.Local.sRoot)
+V.Local.sTrans.Set("Transaction")
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.local.sTrans,"")
+F.Global.xml.appendTextnode(V.Local.sDoc,V.local.sTrans,V.Ambient.NewLine)
+V.Local.sSubNode(0).Set("TransId")
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(0),V.Local.sRecieverNo)
+F.Global.XML.AppendNode(V.Local.sDoc,V.local.sTrans,V.Local.sSubNode(0))
+F.Global.xml.appendTextnode(V.Local.sDoc,V.local.sTrans,V.Ambient.NewLine)
+F.Global.XML.DestroyNode(V.local.sDoc,V.Local.sSubNode(0))
+
+V.Local.sSubNode(0).Set("Organization")
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(0),"")
+
+V.Local.ssubnode(1).Set("OrganizationId")
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(1),"00117658034")
+F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sSubNode(0),V.Local.sSubNode(1))
+F.Global.xml.appendTextnode(V.Local.sDoc,V.Local.sSubNode(0),V.Ambient.NewLine)
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(1))
+
+V.Local.ssubnode(1).Set("OrganizationName")
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(1),"Wright Metal Products")
+F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sSubNode(0),V.Local.sSubNode(1))
+F.Global.xml.appendTextnode(V.Local.sDoc,V.Local.sSubNode(0),V.Ambient.NewLine)
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(1))
+
+F.Global.XML.AppendNode(V.Local.sDoc,V.local.sTrans,V.Local.sSubNode(0))
+F.Global.XML.AppendNode(V.Local.sDoc,V.local.sTrans,V.Local.sSubNode(0))
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(0))
+
+V.Local.dateX.Set(V.Ambient.Now)
+
+V.Local.sSubNode(0).Set("TransDate")
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(0),"")
+V.Local.ssubnode(1).Set("Date")
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(1),"")
+
+V.Local.ssubnode(2).Set("Day")
+F.Intrinsic.Date.Day(V.Local.dateX,V.Local.shold)
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(2),V.Local.shold)
+F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sSubNode(1),V.Local.sSubNode(2))
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(2))
+
+V.Local.ssubnode(2).Set("Month")
+F.Intrinsic.Date.Month(V.Local.dateX,V.Local.shold)
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(2),V.Local.shold)
+F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sSubNode(1),V.Local.sSubNode(2))
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(2))
+
+V.Local.ssubnode(2).Set("Year")
+F.Intrinsic.Date.Year(V.Local.dateX,V.Local.shold)
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(2),V.Local.shold)
+F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sSubNode(1),V.Local.sSubNode(2))
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(2))
+
+F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sSubNode(0),V.Local.sSubNode(1))
+F.Global.xml.appendTextnode(V.Local.sDoc,V.Local.sSubNode(0),V.Ambient.NewLine)
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(1))
+
+V.Local.ssubnode(1).Set("Time")
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(1),"")
+
+V.Local.ssubnode(2).Set("Hour")
+F.Intrinsic.Date.Hour(V.Local.dateX,V.Local.shold)
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(2),V.Local.shold)
+F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sSubNode(1),V.Local.sSubNode(2))
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(2))
+
+V.Local.ssubnode(2).Set("Minute")
+F.Intrinsic.Date.Minute(V.Local.dateX,V.Local.shold)
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(2),V.Local.shold)
+F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sSubNode(1),V.Local.sSubNode(2))
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(2))
+
+V.Local.ssubnode(2).Set("Second")
+F.Intrinsic.Date.second(V.Local.dateX,V.Local.shold)
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(2),V.Local.shold)
+F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sSubNode(1),V.Local.sSubNode(2))
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(2))
+
+F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sSubNode(0),V.Local.sSubNode(1))
+F.Global.xml.appendTextnode(V.Local.sDoc,V.Local.sSubNode(0),V.Ambient.NewLine)
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(1))
+
+F.Global.XML.AppendNode(V.Local.sDoc,V.local.sTrans,V.Local.sSubNode(0))
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(0))
+
+
+
+
+
+
+'Start Sender Node
+V.Local.sNode.Set("Sender")
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sNode,"")
+
+V.local.ssubnode(0).Set("LocId")
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(0),"Wright Metal")
+F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sNode,V.Local.sSubNode(0))
+F.Global.xml.appendTextnode(V.Local.sDoc,V.Local.sNode,V.Ambient.NewLine)
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(0))
+
+
+V.local.ssubnode(0).Set("Name")
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(0),"Wright Metal")
+F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sNode,V.Local.sSubNode(0))
+F.Global.xml.appendTextnode(V.Local.sDoc,V.Local.sNode,V.Ambient.NewLine)
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(0))
+
+'Start Sender Address
+V.local.ssubnode(0).Set("Address")
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(0),"")
+
+V.Local.sSubNode(1).Set("Address1")
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(1),"378 Neely Ferry Road")
+F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sSubNode(0),V.Local.sSubNode(1))
+F.Global.xml.appendTextnode(V.Local.sDoc,V.Local.sSubNode(0),V.Ambient.NewLine)
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(1))
+
+
+V.Local.sSubNode(1).Set("City")
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(1),"Simpsonville")
+F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sSubNode(0),V.Local.sSubNode(1))
+F.Global.xml.appendTextnode(V.Local.sDoc,V.Local.sSubNode(0),V.Ambient.NewLine)
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(1))
+
+V.Local.sSubNode(1).Set("StateProvince")
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(1),"SC")
+F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sSubNode(0),V.Local.sSubNode(1))
+F.Global.xml.appendTextnode(V.Local.sDoc,V.Local.sSubNode(0),V.Ambient.NewLine)
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(1))
+
+V.Local.sSubNode(1).Set("PostalCode")
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(1),"29680")
+F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sSubNode(0),V.Local.sSubNode(1))
+F.Global.xml.appendTextnode(V.Local.sDoc,V.Local.sSubNode(0),V.Ambient.NewLine)
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(1))
+
+V.Local.sSubNode(1).Set("Country")
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(1),"USA")
+F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sSubNode(0),V.Local.sSubNode(1))
+F.Global.xml.appendTextnode(V.Local.sDoc,V.Local.sSubNode(0),V.Ambient.NewLine)
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(1))
+
+F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sNode,V.Local.sSubNode(0))
+'End Sender Address
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(0))
+'End Sender node
+F.Global.XML.AppendNode(V.Local.sDoc,V.local.strans,V.Local.sNode)
+F.global.XML.DestroyNode(V.local.sDoc,V.Local.sNode)
+
+V.Local.sNode.Set("Shipment")
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sNode,"")
+
+V.local.ssubnode(0).Set("ShipmentId")
+V.Local.shold.Set("")
+'F.Intrinsic.String.Concat("SELECT PURCHASE_ORDER, RCVRTXT_TEXT FROM PO_RCVR_TEXT  WHERE RECEIVER = '",V.Local.sRecieverNo,"'  AND TEXT_SEQ = '001 ' ORDER BY PO_LINE, TEXT_SEQ",V.Local.sQuery)
+'have to only get the first line of the Text field.. new table it's in Long VarChar
+F.Intrinsic.String.Build("Select Text From  V_PO_RCVR_Comments Where Receiver = '{0}' And Purchase_Order = '{1}' Order By PO_LINE",V.Local.sRecieverNo,V.Local.sPO,V.Local.sQuery)
+F.odbc.Connection!conx.OpenRecordsetRO("rst",V.local.squery)
+F.Intrinsic.Control.if(V.odbc.conx!rst.EOF,=,False)
+	V.Local.shold.Set(V.ODBC.conx!rst.FieldVal!TEXT)
+	'have to break it up by new line since they are in a big long var char field now
+	F.Intrinsic.String.Split(V.Local.shold,V.Ambient.NewLine,V.Local.shold)
+F.Intrinsic.Control.EndIf
+F.ODBC.conx!rst.Close
+'the
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(0),V.Local.shold(0))
+F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sNode,V.Local.sSubNode(0))
+F.Global.xml.appendTextnode(V.Local.sDoc,V.Local.sNode,V.Ambient.NewLine)
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(0))
+
+F.Intrinsic.Control.CallSub(Buildserialinv,"doc",V.Local.sDoc,"number",V.Local.sRecieverNo,"sShip",V.Local.snode)
+
+'end shipment
+'End Transaction node
+F.Global.XML.AppendNode(V.Local.sDoc,V.local.sTrans,V.local.sNode)
+F.global.XML.DestroyNode(V.local.sDoc,V.local.sNode)
+F.Global.XML.AppendNodeToRoot(V.Local.sDoc,V.Local.sTrans)
+F.global.XML.DestroyNode(V.local.sDoc,V.Local.sNode)
+F.Global.XML.SaveDocument(V.Local.sDoc,V.Caller.FilesDir,V.Local.sDoc)
+
+F.Global.XML.CloseDocument(V.Local.sDoc)
+
+F.Intrinsic.Control.CallSub(Ftp_upload,"doc",V.Local.sDoc)
+
+F.ODBC.Connection!conx.Close
+F.Intrinsic.Control.End
+
+Program.Sub.Main.End
+
+Program.Sub.BuildSerialInv.Start
+
+V.Local.sRecieverNo.Declare(String)
+V.Local.sQuery.Declare(String)
+V.Local.sRoot.Declare(String)
+V.Local.sNode.Declare(String)
+V.Local.sSubNode.Declare(String)
+V.Local.sSubNode.Redim(0,4)
+V.Local.sDoc.Declare(String)
+V.Local.shold.Declare(String)
+V.Local.iRet.Declare(String)
+V.Local.sStatus.Declare(String)
+V.Local.iC.Declare(Long)
+V.Local.sPO.Declare(String)
+V.Local.sText.Declare(String)
+
+
+F.Intrinsic.String.lpad(V.Passed.000002,"0",7,V.Local.sPO)
+
+
+V.Local.sRecieverNo.Set(V.Args.number)
+V.Local.sDoc.set(V.Args.doc)
+
+V.Local.sNode.Set("SerialOrder")
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sNode,"")
+F.Global.xml.appendTextnode(V.Local.sDoc,V.Local.sNode,V.Ambient.NewLine)
+V.Local.sSubNode(0).Set("OrderNumber")
+F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(0),V.passed.000002)
+F.Global.xml.appendTextnode(V.Local.sDoc,V.Local.sSubNode(0),V.Ambient.NewLine)
+F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sNode,V.Local.sSubNode(0))
+F.Global.xml.appendTextnode(V.Local.sDoc,V.Local.sNode,V.Ambient.NewLine)
+F.Global.XML.DestroyNode(V.Local.sdoc,V.Local.sSubNode(0))
+
+'F.Intrinsic.String.Concat("SELECT PURCHASE_ORDER, RCVRTXT_TEXT FROM PO_RCVR_TEXT  WHERE RECEIVER = '",V.Local.sRecieverNo,"' AND TEXT_SEQ <> '001  ' ORDER BY PO_LINE, TEXT_SEQ",V.Local.sQuery)
+'TRT
+
+
+
+F.Intrinsic.String.Build("Select Purchase_Order, Text From V_PO_RCVR_COMMENTS Where Receiver = '{0}' And Purchase_Order = '{1}' Order By Purchase_Order, PO_LIne",V.Local.sRecieverNo,V.local.sPO,V.Local.sQuery)
+
+'RW cause it's long var char and GAB cant hang
+F.odbc.Connection!conx.OpenRecordsetRW("rst",V.local.squery)
+
+
+F.Intrinsic.Control.DoUntil(V.odbc.conx!rst.EOF,=,True)
+	V.Local.sText.Set(V.ODBC.conx!rst.fieldval!Text)
+	
+	F.Intrinsic.Control.If(V.Local.sText.Trim,<>,"")
+		'break it up and then loop through it
+'		V.Local.sText.Set(V.ODBC.conx!rst.FieldVal!Text)
+'		F.Intrinsic.String.Split(V.ODBC.conx!rst.FieldVal!Text,V.Ambient.NewLine,V.Local.sText)
+		'junky
+		F.Intrinsic.String.Split(V.local.sText,V.Ambient.NewLine,V.Local.sText)
+		
+		F.Intrinsic.Control.For(V.Local.iC,1,V.Local.sText.UBound,1)
+			'make sure it's not blank
+			F.Intrinsic.Control.If(V.Local.sText(v.Local.iC).Trim,<>,"")
+
+				V.local.ssubnode(1).Set("SerialOrderLine")
+				F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(1),"")
+				
+				F.Global.XML.CreateAttributeNode(V.Local.sDoc,"Status","RECEIVED")
+				F.Global.XML.SetAttributeToNode(V.Local.sDoc,V.Local.sSubNode(1),"Status")
+				F.Global.XML.DestroyNode(V.Local.sDoc,"Status")
+		'		F.Global.xml.appendTextnode(V.Local.sDoc,V.Local.sSubNode(0),V.Ambient.NewLine)
+				F.Global.xml.appendTextnode(V.Local.sDoc,V.Local.sSubNode(1),V.Ambient.NewLine)
+
+
+				V.Local.sSubNode(2).Set("SerialNumber")
+				F.Global.XML.CreateElementNode(V.Local.sDoc,V.Local.sSubNode(2),V.local.sText(v.Local.iC))
+				'F.Global.xml.appendTextnode(V.Local.sDoc,V.Local.sSubNode(1),V.Ambient.NewLine)
+				F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sSubNode(1),V.Local.sSubNode(2))
+				F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(2))
+				F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sNode,V.Local.sSubNode(1))
+				F.Global.xml.appendTextnode(V.Local.sDoc,V.Local.sNode,V.Ambient.NewLine)
+				F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sSubNode(1))
+			F.Intrinsic.Control.EndIf
+		F.Intrinsic.Control.Next(V.Local.iC)
+	F.Intrinsic.Control.endif
+	F.ODBC.conx!rst.MoveNext
+F.Intrinsic.Control.loop
+
+F.ODBC.conx!rst.Close
+
+'F.Global.XML.AppendNode(V.Local.sDoc,V.Local.sNode,V.Local.sSubNode(0))
+'F.Global.xml.appendTextnode(V.Local.sDoc,V.Local.sNode,V.Ambient.NewLine)
+'F.Global.XML.DestroyNode(V.Local.sdoc,V.Local.sSubNode(0))
+
+F.Global.XML.AppendNode(V.Local.sDoc,V.args.sShip,V.Local.sNode)
+F.Global.XML.DestroyNode(V.Local.sDoc,V.Local.sNode)
+
+Program.Sub.BuildSerialInv.End
+
+Program.Sub.FTPConnectionEvent.Start
+
+'V.Local.shold.Declare(String)
+'
+'F.Intrinsic.String.Concat(V.Args.connectionevent," : ",V.Args.description,V.Local.shold)
+'Gui.f_status.lbl1.Caption(V.Local.shold)
+
+Program.Sub.FTPConnectionEvent.End
+
+Program.Sub.FTPErrorEvent.Start
+
+V.Local.shold.Declare(String)
+
+F.Intrinsic.String.Concat("ERROR: (",V.Args.ErrorCode,") DESC: ",V.args.description,V.Local.shold)
+F.Intrinsic.UI.Msgbox(V.Local.shold)
+
+Program.Sub.FTPErrorEvent.End
+
+Program.Sub.FTPEndTransfer.Start
+Gui.f_status.lbl1.Caption("Transfer Completed")
+F.Intrinsic.Control.End
+
+Program.Sub.FTPEndTransfer.End
+
+Program.Sub.FTPStartTransfer.Start
+Gui.f_status.lbl1.Caption("Transfer Started")
+
+Program.Sub.FTPStartTransfer.End
+
+Program.Sub.ftp_upload.Start
+
+V.Local.shold.Declare(String)
+V.Local.sret.Declare(String)
+V.Local.sdoc.Declare(String)
+V.Local.sdoc.Set(V.Args.doc)
+
+F.Communication.FTP.ReadProperty("connected",V.Local.sret)
+F.Intrinsic.Control.If(V.local.sret,=,False)
+	F.Communication.FTP.SetProperty("User","globalshop")
+	F.Communication.FTP.SetProperty("Password","Gr3atCrat35")
+	F.Communication.FTP.SetProperty("remoteHost","leuftp01-ccr.steelwarehouse.net")
+	F.Communication.FTP.SetProperty("passive","true")
+	F.Communication.FTP.Logon
+	F.Communication.FTP.SetProperty("RemotePath","GENCO_FTP/TMS")
+F.Intrinsic.Control.endif
+
+F.Communication.FTP.ReadProperty("connected",V.Local.sret)
+F.Intrinsic.Control.If(V.local.sret,=,True)
+	V.Global.iSizeLast.Set(0)
+
+	F.Intrinsic.String.Concat(V.caller.FilesDir,"\",V.args.doc,V.Local.shold)
+	F.Intrinsic.File.GetFileSize(V.Local.shold,V.Local.sret)
+
+	F.Intrinsic.control.If(V.Local.sret,<>,0)
+		V.Global.iFileSize.Set(V.Local.sret.Long)
+	F.Intrinsic.Control.endif
+
+	V.global.fStart.Set(V.Ambient.Timer)
+	'sets upload file and loads it
+	V.global.sTransferFile.Set(V.local.sdoc)
+	F.Communication.FTP.SetProperty("LocalFile",V.Local.shold)
+	F.Communication.FTP.SetProperty("RemoteFile",V.local.sdoc)
+	F.Communication.FTP.SetProperty("TransferMode",2)
+	F.Communication.FTP.Upload
+
+'	F.Communication.FTP.ListDirectoryLong
+F.Intrinsic.Control.endif
+F.Intrinsic.Control.End
+F.Communication.FTP.Logoff
+
+
+
+Program.Sub.ftp_upload.End
+
+Program.Sub.FTPTransfer.Start
+
+'Event handles upload, append and download
+V.local.fElapsed.Declare(Float)
+V.Local.iSizeNow.Declare(Long)
+V.Local.iResult.Declare(Long)
+V.Local.idif.Declare(Long)
+V.Local.shold.Declare(String)
+F.Intrinsic.control.If(V.global.iSizeLast,=,0)
+	V.Local.iResult.Set(0)
+	V.Global.iSizeLast.Set(V.Args.bytestransferred)
+F.Intrinsic.Control.ElseIf(V.Global.iSizeLast,<>,0)
+	V.local.fElapsed.Set(V.Ambient.Timer)
+	F.Intrinsic.Math.Sub(V.local.fElapsed,V.global.fStart,V.Local.idif)
+	F.Intrinsic.Math.Sub(V.Global.iSizeLast,V.Args.bytestransferred,V.Local.iResult)
+	F.Intrinsic.Control.If(V.Local.idif,<>,0)
+		F.Intrinsic.Math.Div(V.Local.iResult,V.Local.idif,V.Local.iResult)
+	F.Intrinsic.Control.endif
+	V.Global.iSizeLast.Set(V.Args.bytestransferred)
+F.Intrinsic.Control.endif
+F.Intrinsic.Control.If(V.Local.iResult,<>,0)
+	F.Intrinsic.String.Concat("Transfering at ",V.Local.iResult.String," KB Per Second",V.Local.shold)
+	Gui.f_status.lbl1.caption(V.Local.shold)
+F.Intrinsic.Control.endif
+
+Program.Sub.FTPTransfer.End
+
+Program.Sub.FTPDirEvent.Start
+
+
+Program.Sub.FTPDirEvent.End
+
+program.sub.f_status_unload.start
+F.Intrinsic.Control.End
+
+program.sub.f_status_unload.end
+
+
